@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ---
 - name: Create EC2 instance and install Docker, Python, Docker Compose, and configure SSH
   hosts: localhost
@@ -102,3 +103,109 @@
     - name: Print success message
       ansible.builtin.debug:
         msg: "EC2 instance {{ ec2_public_ip }} is ready. Docker, Python, and Docker Compose are installed, Dockerfile and index.html are copied, Docker image is built, and container is running."
+=======
+---
+- name: Create EC2 instance and install Docker, Python, Docker Compose, and configure SSH
+  hosts: localhost
+  gather_facts: false
+  vars:
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: ~/keypem/yair.pem
+    ssh_public_key: ~/.ssh/id_rsa.pub
+    dockerfile_path: ./Dockerfile
+    index_html_path: ./index.html
+    docker_image_name: my-nginx-image
+  tasks:
+    - name: Run Python script to create EC2 instance
+      command: python3 create-ec2.py
+      register: ec2_creation_output
+
+    - name: Extract EC2 public IP from the script output
+      set_fact:
+        ec2_public_ip: "{{ ec2_creation_output.stdout.strip() }}"
+
+    - name: Wait for EC2 SSH to be ready
+      wait_for:
+        host: "{{ ec2_public_ip }}"
+        port: 22
+        delay: 10
+        timeout: 300
+        state: started
+
+    - name: Update APT package index on the EC2 instance
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      vars:
+        ansible_host: "{{ ec2_public_ip }}"
+
+    - name: Install Docker on the EC2 instance
+      ansible.builtin.apt:
+        name: docker.io
+        state: present
+      vars:
+        ansible_host: "{{ ec2_public_ip }}"
+
+    - name: Start and enable Docker service
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: true
+      vars:
+        ansible_host: "{{ ec2_public_ip }}"
+
+    - name: Install Python
+      ansible.builtin.apt:
+        name: python3
+        state: present
+      vars:
+        ansible_host: "{{ ec2_public_ip }}"
+
+    - name: Install Docker Compose
+      ansible.builtin.shell: |
+        sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose
+      vars:
+        ansible_host: "{{ ec2_public_ip }}"
+
+    - name: Copy SSH public key to EC2 instance
+      ansible.builtin.copy:
+        src: "{{ ssh_public_key }}"
+        dest: /home/ubuntu/.ssh/authorized_keys
+        mode: "0600"
+        owner: ubuntu
+        group: ubuntu
+      vars:
+        ansible_host: "{{ ec2_public_ip }}"
+
+    - name: Copy Dockerfile to EC2 instance
+      ansible.builtin.copy:
+        src: "{{ dockerfile_path }}"
+        dest: /home/ubuntu/Dockerfile
+      vars:
+        ansible_host: "{{ ec2_public_ip }}"
+
+    - name: Copy index.html to EC2 instance
+      ansible.builtin.copy:
+        src: "{{ index_html_path }}"
+        dest: /home/ubuntu/index.html
+      vars:
+        ansible_host: "{{ ec2_public_ip }}"
+
+    - name: Build Docker image on EC2 instance
+      ansible.builtin.shell: |
+        cd /home/ubuntu
+        sudo docker build -t {{ docker_image_name }} .
+      vars:
+        ansible_host: "{{ ec2_public_ip }}"
+
+    - name: Run Docker container on EC2 instance
+      ansible.builtin.shell: |
+        sudo docker run -d -p 8080:80 --name {{ docker_image_name }}
+      vars:
+        ansible_host: "{{ ec2_public_ip }}"
+
+    - name: Print success message
+      ansible.builtin.debug:
+        msg: "EC2 instance {{ ec2_public_ip }} is ready. Docker, Python, and Docker Compose are installed, Dockerfile and index.html are copied, Docker image is built, and container is running."
+>>>>>>> 1f8eb90d3e919f6f1b4ccbebcc5f60424fe0d5d8
